@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-invoicing flow simulator · Amplifon France</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#FFFFFF; --ink2:#F3F7FC; --panel:#FFFFFF; --panel2:#F7FAFE;
+  --line:#D5E0EE; --line-soft:#E7EEF6;
+  --tx:#16263F; --mut:#566782; --mut2:#94A3B8;
+  --inv:#1F86E0;          /* invoice in transit */
+  --st:#D9870B;           /* status / motive returning */
+  --ok:#159A66; --no:#E0455D; --hold:#D9870B;
+  --ar:#1F86E0; --ap:#7C5CE0;
+  --radius:14px;
+  --mono:'JetBrains Mono', ui-monospace, monospace;
+  --disp:'Space Grotesk', system-ui, sans-serif;
+  --body:'Inter', system-ui, sans-serif;
+  --shadow:0 1px 3px rgba(20,40,80,.06), 0 6px 20px -14px rgba(20,40,80,.18);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:
+    radial-gradient(1100px 600px at 80% -10%, #e9f1fb 0%, transparent 55%),
+    radial-gradient(900px 520px at -5% 110%, #eef3fb 0%, transparent 50%),
+    #ffffff;
+  color:var(--tx); font-family:var(--body); line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px; margin:0 auto; padding:40px 22px 90px}
+a{color:var(--inv)}
+
+/* header */
+.eyebrow{font-family:var(--mono); font-size:11.5px; letter-spacing:.32em; text-transform:uppercase; color:var(--inv); margin:0 0 14px}
+h1{font-family:var(--disp); font-weight:600; font-size:clamp(28px,5vw,46px); line-height:1.04; letter-spacing:-.02em; margin:0 0 14px; color:var(--tx)}
+h1 .dim{color:var(--mut)}
+.lede{max-width:680px; color:var(--mut); font-size:15.5px; margin:0}
+.lede code{font-family:var(--mono); font-size:.9em; color:var(--tx); background:#eef4fb; border:1px solid var(--line-soft); padding:1px 6px; border-radius:6px}
+.rule{height:1px; background:linear-gradient(90deg,var(--line),transparent); margin:34px 0 0}
+
+/* section heads */
+.sec-head{display:flex; align-items:baseline; gap:14px; margin:46px 0 18px}
+.sec-num{font-family:var(--mono); font-size:12px; color:var(--mut2); padding-top:4px}
+.sec-head h2{font-family:var(--disp); font-weight:600; font-size:22px; letter-spacing:-.01em; margin:0; color:var(--tx)}
+.sec-head p{margin:0; color:var(--mut); font-size:13.5px}
+
+/* layout */
+.sim{display:grid; grid-template-columns:248px 1fr; gap:22px}
+@media (max-width:860px){ .sim{grid-template-columns:1fr} }
+
+/* picker */
+.picker{background:linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--line); border-radius:var(--radius); padding:14px; align-self:start; box-shadow:var(--shadow)}
+.picker .grp{font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--mut2); margin:6px 4px 8px}
+.picker .grp:not(:first-child){margin-top:16px}
+.case{display:flex; align-items:center; gap:10px; width:100%; text-align:left; cursor:pointer;
+  background:transparent; border:1px solid transparent; border-radius:10px; padding:9px 10px; margin-bottom:3px;
+  color:var(--tx); font-family:var(--body); font-size:13.5px; transition:background .15s,border-color .15s}
+.case:hover{background:#eef4fb}
+.case:focus-visible{outline:2px solid var(--inv); outline-offset:2px}
+.case.on{background:#e8f1fc; border-color:var(--line)}
+.case .tag{font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:.06em; padding:2px 6px; border-radius:5px; flex:none}
+.tag.ar{color:var(--ar); background:rgba(31,134,224,.1)}
+.tag.ap{color:var(--ap); background:rgba(124,92,224,.12)}
+.case .nm{flex:1; line-height:1.25}
+.case .cd{font-family:var(--mono); font-size:10.5px; color:var(--mut2)}
+.case.on .cd{color:var(--mut)}
+
+/* stage */
+.stage{background:linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--line); border-radius:var(--radius); padding:20px 20px 8px; min-width:0; box-shadow:var(--shadow)}
+.stage-top{display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-bottom:4px}
+.stage-top .title{font-family:var(--disp); font-weight:600; font-size:17px; color:var(--tx)}
+.stage-top .fr{color:var(--mut); font-size:13px; font-style:italic}
+.pill{font-family:var(--mono); font-size:10.5px; padding:3px 8px; border-radius:999px; border:1px solid var(--line); color:var(--mut)}
+.pill.code{color:var(--inv); border-color:rgba(31,134,224,.4)}
+.pill.term{color:var(--no); border-color:rgba(224,69,93,.4)}
+.pill.nonterm{color:var(--ok); border-color:rgba(21,154,102,.4)}
+.dirline{display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--mut2); margin:14px 2px 2px}
+.dirline b{color:var(--inv); font-weight:500}
+.dirline .stl{color:var(--st)}
+
+/* flow strip */
+.flowscroll{overflow-x:auto; padding:30px 4px 8px; margin:0 -4px}
+.flow{position:relative; display:flex; align-items:center; min-width:640px}
+.node{position:relative; flex:none; width:148px; background:linear-gradient(180deg,#ffffff,#f5f9fe); border:1px solid var(--line); border-radius:12px; padding:12px 11px 10px; text-align:center; box-shadow:0 1px 2px rgba(20,40,80,.05)}
+.node .ic{width:30px; height:30px; margin:2px auto 8px; color:var(--mut); display:block}
+.node .nt-t{font-family:var(--disp); font-weight:600; font-size:13.5px; line-height:1.1; color:var(--tx)}
+.node .nt-s{font-size:10.5px; color:var(--mut2); margin-top:2px}
+.node .note{min-height:30px; margin-top:9px; font-family:var(--mono); font-size:10px; line-height:1.3; color:var(--mut); opacity:0; transition:opacity .25s; word-break:break-word}
+.node .note.show{opacity:1}
+.node.active{border-color:var(--st); box-shadow:0 0 0 1px var(--st), 0 0 22px -6px var(--st)}
+.node.active .ic{color:var(--st)}
+
+.badge{position:absolute; top:-9px; right:-9px; width:24px; height:24px; border-radius:50%;
+  display:grid; place-items:center; font-size:13px; font-weight:700; color:#fff;
+  transform:scale(0); transition:transform .22s cubic-bezier(.34,1.56,.64,1); border:2px solid #fff; box-shadow:0 1px 4px rgba(20,40,80,.25)}
+.badge.show{transform:scale(1)}
+.badge.ok{background:var(--ok)} .badge.no{background:var(--no)} .badge.hold{background:var(--hold)}
+
+.wire{flex:1; min-width:26px; height:3px; background:var(--line); border-radius:3px; position:relative; transition:background .25s, box-shadow .25s}
+.wire.lit-inv{background:var(--inv); box-shadow:0 0 12px -2px var(--inv)}
+.wire.lit-st{background:var(--st); box-shadow:0 0 12px -2px var(--st)}
+
+.packet{position:absolute; top:0; left:0; width:15px; height:15px; border-radius:50%; opacity:0; pointer-events:none; z-index:5}
+.packet.show{opacity:1}
+.packet.inv{background:radial-gradient(circle at 35% 35%,#bfe2fb,var(--inv)); box-shadow:0 0 14px 3px rgba(31,134,224,.55), -14px 0 16px -7px rgba(31,134,224,.45)}
+.packet.st{background:radial-gradient(circle at 35% 35%,#ffd99b,var(--st)); box-shadow:0 0 14px 3px rgba(217,135,11,.55), 14px 0 16px -7px rgba(217,135,11,.45)}
+
+/* controls / console */
+.console{display:flex; flex-wrap:wrap; align-items:center; gap:10px; border-top:1px solid var(--line-soft); margin-top:8px; padding:14px 0 4px}
+.btn{font-family:var(--body); font-size:13px; font-weight:600; color:var(--tx); background:#eef4fb; border:1px solid var(--line); border-radius:9px; padding:8px 14px; cursor:pointer; transition:background .15s,border-color .15s}
+.btn:hover{background:#e3edf9; border-color:var(--inv)}
+.btn:focus-visible{outline:2px solid var(--inv); outline-offset:2px}
+.btn.primary{background:linear-gradient(180deg,#2a90e6,#1b73c4); border-color:#1b73c4; color:#fff}
+.btn.primary:hover{background:linear-gradient(180deg,#3a9bef,#2079cc)}
+.btn:disabled{opacity:.45; cursor:default}
+.speed{display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11px; color:var(--mut2); margin-left:auto}
+.speed button{font-family:var(--mono); font-size:11px; color:var(--mut); background:transparent; border:1px solid var(--line-soft); border-radius:7px; padding:5px 9px; cursor:pointer}
+.speed button.on{color:var(--tx); border-color:var(--inv); background:#e8f1fc}
+
+.prompt{display:none; align-items:center; flex-wrap:wrap; gap:10px; width:100%; padding:12px 13px; margin-top:4px;
+  background:#fff6e8; border:1px solid var(--st); border-radius:10px}
+.prompt.show{display:flex}
+.prompt .lab{font-size:13px}
+.prompt .lab b{color:#a8660a}
+.prompt select{font-family:var(--mono); font-size:12.5px; color:var(--tx); background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 10px; min-width:240px}
+.prompt select:focus-visible{outline:2px solid var(--st)}
+
+/* details */
+.details{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--line-soft);
+  border:1px solid var(--line-soft); border-radius:10px; overflow:hidden; margin-top:16px}
+.details .cell{background:var(--panel); padding:11px 13px}
+.details .k{font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--mut2); margin-bottom:4px}
+.details .v{font-size:13px; color:var(--tx)}
+
+/* dashboard */
+.dash{margin-top:16px; border:1px dashed var(--line); border-radius:12px; padding:16px; opacity:.45; transition:opacity .4s}
+.dash.live{opacity:1; border-style:solid; border-color:var(--line); background:#fcfdff}
+.dash-h{display:flex; align-items:center; gap:9px; margin-bottom:13px}
+.dash-h .dot{width:7px; height:7px; border-radius:50%; background:var(--mut2)}
+.dash.live .dash-h .dot{background:var(--ok); box-shadow:0 0 9px var(--ok)}
+.dash-h h4{font-family:var(--disp); font-weight:600; font-size:14px; margin:0; color:var(--tx)}
+.dash-h .src{font-family:var(--mono); font-size:10.5px; color:var(--mut2); margin-left:auto}
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:13px}
+.chip{font-family:var(--mono); font-size:11px; padding:5px 11px; border-radius:8px; background:#eef4fb; border:1px solid var(--line-soft); color:var(--mut)}
+.chip b{color:var(--tx); font-weight:700}
+.chip.warn{border-color:rgba(217,135,11,.45); color:#9a6207} .chip.warn b{color:var(--hold)}
+.chip.error{border-color:rgba(224,69,93,.5); color:#b23149} .chip.error b{color:var(--no)}
+.tbl{width:100%; border-collapse:collapse; font-size:12px}
+.tbl th{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut2); text-align:left; padding:7px 10px; border-bottom:1px solid var(--line-soft); white-space:nowrap}
+.tbl td{padding:9px 10px; border-bottom:1px solid var(--line-soft); vertical-align:top}
+.tbl td.mono{font-family:var(--mono); font-size:11.5px}
+.s-ok{color:var(--ok); font-weight:500} .s-no{color:var(--no); font-weight:500} .s-hold{color:var(--hold); font-weight:500} .s-dim{color:var(--mut2)}
+
+/* legend */
+.legend{display:flex; flex-wrap:wrap; gap:8px 18px; margin:18px 2px 0; font-size:12px; color:var(--mut)}
+.legend .it{display:flex; align-items:center; gap:7px}
+.sw{width:22px; height:4px; border-radius:3px}
+.sw.inv{background:var(--inv)} .sw.st{background:var(--st)}
+.bdg{width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:700; color:#fff}
+.bdg.ok{background:var(--ok)} .bdg.no{background:var(--no)} .bdg.hold{background:var(--hold)}
+
+/* gallery */
+.gallery{display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:16px}
+.gcard{background:linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--line); border-radius:var(--radius); padding:16px 16px 14px; box-shadow:var(--shadow)}
+.gcard .gh{display:flex; align-items:center; gap:9px; margin-bottom:3px}
+.gcard .gh .nm{font-family:var(--disp); font-weight:600; font-size:14px; flex:1; color:var(--tx)}
+.gcard .gh .cd{font-family:var(--mono); font-size:10.5px; color:var(--mut2)}
+.gcard .gsub{font-size:11.5px; color:var(--mut); font-style:italic; margin:0 0 6px}
+.gcard .gres{font-size:11.5px; color:var(--mut); margin-top:11px; line-height:1.4}
+.gcard .gres b{color:var(--tx); font-weight:600}
+.mini .flow{min-width:520px}
+.mini .node{width:92px; padding:9px 6px 7px; border-radius:9px}
+.mini .node .ic{width:20px; height:20px; margin:0 auto 5px}
+.mini .node .nt-t{font-size:11px} .mini .node .nt-s{display:none}
+.mini .node .note{min-height:26px; font-size:8.5px; margin-top:6px}
+.mini .badge{width:18px; height:18px; font-size:10px; top:-7px; right:-7px}
+.mini .wire{min-width:14px; height:2px}
+.mini .flowscroll{padding:22px 3px 4px}
+
+.foot{margin-top:40px; padding-top:20px; border-top:1px solid var(--line-soft); color:var(--mut2); font-size:12px; line-height:1.6}
+.foot code{font-family:var(--mono); color:var(--mut)}
+
+@media (prefers-reduced-motion: reduce){
+  .badge,.wire,.packet,.note,.dash{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Operating model · error &amp; exception cases</p>
+  <h1>E-invoicing flow simulator<br><span class="dim">Amplifon France</span></h1>
+  <p class="lede">Pick a case to watch an invoice move across the integration chain
+    <code>Oracle → APRO → Tesisquare</code> and back. A system turns green when it does its job, red only where the failure or rejection actually happens, and amber when it holds or raises a decision. E-invoicing only — e-reporting is out of scope.</p>
+
+  <div class="rule"></div>
+
+  <!-- ============ SIMULATOR ============ -->
+  <div class="sec-head">
+    <span class="sec-num">01</span>
+    <div><h2>Simulate a case</h2><p>Select a scenario — it runs automatically and stops at any decision point.</p></div>
+  </div>
+
+  <div class="sim">
+    <div class="picker" id="picker"></div>
+
+    <div class="stage">
+      <div class="stage-top">
+        <span class="title" id="st-title">—</span>
+        <span class="fr" id="st-fr"></span>
+        <span class="pill code" id="st-code"></span>
+        <span class="pill" id="st-term"></span>
+      </div>
+      <div class="dirline" id="st-dir"></div>
+
+      <div class="flowscroll"><div class="flow" id="mainflow"></div></div>
+
+      <div class="prompt" id="prompt">
+        <span class="lab">Action required — choose a motive at <b id="prompt-node">·</b>:</span>
+        <select id="prompt-sel"></select>
+      </div>
+
+      <div class="console">
+        <button class="btn primary" id="btn-run">▶ Replay</button>
+        <button class="btn" id="btn-reset">Reset</button>
+        <div class="speed">
+          speed
+          <button data-mult="0.5">0.5×</button>
+          <button data-mult="1" class="on">1×</button>
+          <button data-mult="2">2×</button>
+        </div>
+      </div>
+
+      <div class="details" id="details"></div>
+
+      <div class="dash" id="dash">
+        <div class="dash-h"><span class="dot"></span><h4>Dashboard preview</h4><span class="src" id="dash-src"></span></div>
+        <div class="chips" id="dash-chips"></div>
+        <div style="overflow-x:auto"><table class="tbl" id="dash-tbl"></table></div>
+      </div>
+
+      <div class="legend">
+        <span class="it"><span class="bdg ok">✓</span> did its job / relayed</span>
+        <span class="it"><span class="bdg no">✗</span> failure / rejection here</span>
+        <span class="it"><span class="bdg hold">!</span> held / decision / action</span>
+        <span class="it"><span class="sw inv"></span> invoice in transit</span>
+        <span class="it"><span class="sw st"></span> status / motive returning</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GALLERY ============ -->
+  <div class="sec-head">
+    <span class="sec-num">02</span>
+    <div><h2>All cases at a glance</h2><p>Every flow drawn in its final state — no animation. The example motive is shown on each.</p></div>
+  </div>
+  <div class="gallery" id="gallery"></div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+"use strict";
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- node definitions ---------- */
+const ICON = {
+  db:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="5.2" rx="7" ry="2.8"/><path d="M5 5.2v13.6c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8V5.2"/><path d="M5 12c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8"/></svg>',
+  gw:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 4.5h18l-6.6 8v6.2l-4.8-2.4v-3.8z"/></svg>',
+  cloud:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M7 18h10.5a3.5 3.5 0 0 0 .4-6.98 5 5 0 0 0-9.6-1.2A4 4 0 0 0 7 18z"/></svg>',
+  cloud2:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.4 2.2" stroke-linejoin="round"><path d="M7 18h10.5a3.5 3.5 0 0 0 .4-6.98 5 5 0 0 0-9.6-1.2A4 4 0 0 0 7 18z"/></svg>',
+  bld:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="5" y="3.5" width="14" height="17" rx="1.2"/><path d="M9 7.5h2M13 7.5h2M9 11h2M13 11h2M9 14.5h2M13 14.5h2M10.5 20.5v-3h3v3"/></svg>'
+};
+const BASE = [
+  {t:'Oracle', s:'Amplifon ERP', ic:'db'},
+  {t:'APRO', s:'Middleware', ic:'gw'},
+  {t:'Tesisquare', s:'PA · Amplifon', ic:'cloud'},
+];
+const EXT = {
+  AR:[{t:'Customer PA', s:'PA · Customer', ic:'cloud2'},{t:'Customer', s:'Recipient', ic:'bld'}],
+  AP:[{t:'Supplier PA', s:'PA · Supplier', ic:'cloud2'},{t:'Supplier', s:'Issuer', ic:'bld'}]
+};
+const nodeName = (g,i)=> (i<3?BASE[i]:EXT[g][i-3]).t;
+const codeLabel = c => /^\d/.test(c) ? 'CDV '+c : c;
+
+/* ---------- motive label lists ---------- */
+const REFUSAL = ["Incorrect or missing purchase order","Wrong recipient (SIREN)","Unknown transaction","Unknown issuer","Contract ended","Already invoiced","Missing contractual reference","Incorrect VAT rate","Missing legal mention","Incorrect total amount","Calculation error","Wrong e-invoicing address"];
+
+/* ---------- scenarios ---------- */
+const SCEN = [
+{ id:'ar-block', g:'AR', title:'Blocked by APRO', fr:'Bloquée par APRO', code:'no CDV code', term:false,
+  errType:'Internal block — pre-transmission', raised:'APRO (Oracle ↔ Tesi)', cn:'No',
+  action:'Correct the data at source in Oracle; APRO re-validates and transmits. The invoice never reaches the PA.',
+  promptLabel:'missing data', motives:["Seller SIREN (BT-30) missing/invalid","Buyer SIREN (BT-47) missing","E-address (BT-49 / BT-34) missing","Mandatory BT field missing","SIREN not active in PPF directory"],
+  steps:[ {f:[0,1],k:'inv'},{m:0,b:'ok',n:'Relayed to APRO'},{p:1},{m:1,b:'hold',n:'Blocked · {m}'},{d:1} ],
+  dash:{out:'Blocked', cls:'warn', oracle:['Relayed','ok'], apro:['Blocked · {m}','hold'], tesi:['—','dim'], cpty:['—','dim']} },
+
+{ id:'ar-rej-em', g:'AR', title:'Rejected at emission', fr:'Rejetée à l’émission', code:'213', term:true,
+  errType:'Technical rejection — PA (sender)', raised:'Tesisquare (our sender PA)', cn:'Cancel with a credit note',
+  action:'Cancel the invoice with a credit note and re-issue. Ticket Tesisquare if it is a PA-side bug.',
+  promptLabel:'rejection motive', motives:["Semantic / format error","Uniqueness control failed","Data consistency failed","Addressing control failed","B2G control failed","Attachment reference error","Attachment association error","Recipient not in directory"],
+  steps:[ {f:[0,1],k:'inv'},{m:0,b:'ok',n:'Issued OK'},{m:1,b:'ok',n:'Validated'},{f:[1,2],k:'inv'},{p:2},{m:2,b:'no',n:'Rejected 213 · {m}'},{f:[2,1],k:'st'},{f:[1,0],k:'st'},{m:0,b:'ok',n:'Cancel with credit note + re-issue'},{d:1} ],
+  dash:{out:'Rejected 213', cls:'error', oracle:['To cancel + re-issue','hold'], apro:['Validated','ok'], tesi:['Rejected · {m}','no'], cpty:['—','dim']} },
+
+{ id:'ar-irr', g:'AR', title:'Inadmissible', fr:'Irrecevable', code:'flux level', term:false,
+  errType:'Technical rejection — flux level', raised:'Tesisquare / inter-PA flux control', cn:'No',
+  action:'The whole flux is rejected before per-invoice processing — non-terminal. Re-deposit a clean flux; mostly handled by Tesisquare. Monitor.',
+  promptLabel:'inadmissibility reason', motives:["Empty file","Wrong file type","Syntax error","Attachment too large","Invalid attachment name","Empty attachment","Invalid attachment extension","File too large","Antivirus check failed"],
+  steps:[ {f:[0,1],k:'inv'},{m:0,b:'ok',n:'Issued OK'},{m:1,b:'ok',n:'Validated'},{f:[1,2],k:'inv'},{p:2},{m:2,b:'hold',n:'Irrecevable (flux) · {m}'},{f:[2,1],k:'st'},{f:[1,0],k:'st'},{m:0,b:'ok',n:'Re-deposit a clean flux'},{d:1} ],
+  dash:{out:'Irrecevable', cls:'warn', oracle:['Re-deposit flux','hold'], apro:['Validated','ok'], tesi:['Irrecevable · {m}','hold'], cpty:['—','dim']} },
+
+{ id:'ar-rej-rec', g:'AR', title:'Rejected at reception', fr:'Rejetée en réception', code:'213', term:true,
+  errType:'Technical rejection — PA (recipient)', raised:'Customer PA', cn:'Cancel with a credit note',
+  action:'Cancel the invoice with a credit note and re-issue; ticket Tesisquare.',
+  promptLabel:'rejection motive', motives:["Semantic / format error","Data consistency failed","Addressing control failed","Duplicate invoice","Incorrect total amount","Calculation error","Attachment reference error","Attachment association error"],
+  steps:[ {f:[0,1],k:'inv'},{m:0,b:'ok',n:'Issued OK'},{m:1,b:'ok',n:'Validated'},{f:[1,2],k:'inv'},{m:2,b:'ok',n:'Emitted 201'},{f:[2,3],k:'inv'},{p:3},{m:3,b:'no',n:'Rejected 213 · {m}'},{f:[3,2],k:'st'},{f:[2,1],k:'st'},{f:[1,0],k:'st'},{m:0,b:'ok',n:'Cancel with credit note + re-issue'},{d:1} ],
+  dash:{out:'Rejected 213', cls:'error', oracle:['To cancel + re-issue','hold'], apro:['Validated','ok'], tesi:['Emitted 201','ok'], cpty:['Rejected · {m}','no']} },
+
+{ id:'ar-ref', g:'AR', title:'Refused by customer', fr:'Refusée', code:'210', term:true,
+  errType:'Business refusal (terminal)', raised:'Customer (recipient)', cn:'Cancel with a credit note + re-issue',
+  action:'Contact the customer; cancel the invoice with a credit note and issue a new invoice (the original is fiscally dead).',
+  promptLabel:'refusal motive', motives:REFUSAL,
+  steps:[ {f:[0,1],k:'inv'},{m:0,b:'ok',n:'Issued OK'},{m:1,b:'ok',n:'Validated'},{f:[1,2],k:'inv'},{m:2,b:'ok',n:'Emitted 201'},{f:[2,3],k:'inv'},{m:3,b:'ok',n:'Received 202'},{f:[3,4],k:'inv'},{m:4,b:'ok',n:'Made available 203'},{p:4},{m:4,b:'no',n:'Refused 210 · {m}'},{f:[4,3],k:'st'},{f:[3,2],k:'st'},{f:[2,1],k:'st'},{f:[1,0],k:'st'},{m:0,b:'ok',n:'Cancel with credit note + new invoice'},{d:1} ],
+  dash:{out:'Refused 210', cls:'error', oracle:['To cancel + re-issue','hold'], apro:['Validated','ok'], tesi:['Made available 203','ok'], cpty:['Refused · {m}','no']} },
+
+{ id:'ap-rej-rec', g:'AP', title:'Rejected at reception', fr:'Rejetée en réception', code:'213', term:true,
+  errType:'Technical rejection — PA (of supplier invoice)', raised:'Tesisquare (our recipient PA)', cn:'N/A (supplier side)',
+  action:'Wait / ticket Tesisquare. The supplier must correct and re-issue — nothing is bookable on our side.',
+  promptLabel:'rejection motive', motives:["Semantic / format error","Data consistency failed","Addressing control failed","Duplicate invoice","Uniqueness control failed"],
+  steps:[ {f:[4,3],k:'inv'},{m:4,b:'ok',n:'Issued'},{m:3,b:'ok',n:'Emitted by supplier PA'},{f:[3,2],k:'inv'},{p:2},{m:2,b:'no',n:'Rejected 213 · {m}'},{f:[2,3],k:'st'},{f:[3,4],k:'st'},{m:4,b:'ok',n:'Notified — corrects & re-issues'},{d:1} ],
+  dash:{out:'Rejected 213', cls:'error', oracle:['—','dim'], apro:['—','dim'], tesi:['Rejected · {m}','no'], cpty:['Notified','ok']} },
+
+{ id:'ap-apro', g:'AP', title:'Rejected by APRO', fr:'Échec d’intégration', code:'no CDV code', term:false,
+  errType:'Internal integration error (AP)', raised:'APRO', cn:'No',
+  action:'Ticket Tesisquare + APRO; resolve internally, or refuse (210) if the cause is supplier-side.',
+  promptLabel:'integration error', motives:["No PO match","Wrong / closed PO","Supplier master-data mismatch","Cost-center / account missing","Other internal"],
+  steps:[ {f:[4,3],k:'inv'},{m:4,b:'ok',n:'Issued'},{m:3,b:'ok',n:'Emitted'},{f:[3,2],k:'inv'},{m:2,b:'ok',n:'Received & passed'},{f:[2,1],k:'inv'},{p:1},{m:1,b:'no',n:'Integration failed · {m}'},{m:0,b:'hold',n:'Not booked — fix / ticket; or refuse 210'},{d:1} ],
+  dash:{out:'Integration error', cls:'warn', oracle:['Not booked','hold'], apro:['Integration failed · {m}','no'], tesi:['Received & passed','ok'], cpty:['Supplier invoice','ok']} },
+
+{ id:'ap-oracle', g:'AP', title:'Rejected by Oracle', fr:'Échec de comptabilisation', code:'no CDV code', term:false,
+  errType:'Internal integration error (AP)', raised:'Oracle AP', cn:'No',
+  action:'Correct master data / posting setup in Oracle; ticket if needed.',
+  promptLabel:'booking error', motives:["Supplier master data","GL account / tax code","PO / receipt (3-way) mismatch","Duplicate in AP","Other"],
+  steps:[ {f:[4,3],k:'inv'},{m:4,b:'ok',n:'Issued'},{m:3,b:'ok',n:'Emitted'},{f:[3,2],k:'inv'},{m:2,b:'ok',n:'Received & passed'},{f:[2,1],k:'inv'},{m:1,b:'ok',n:'Integrated'},{f:[1,0],k:'inv'},{p:0},{m:0,b:'no',n:'Booking failed · {m}'},{d:1} ],
+  dash:{out:'Booking error', cls:'warn', oracle:['Booking failed · {m}','no'], apro:['Integrated','ok'], tesi:['Received & passed','ok'], cpty:['Supplier invoice','ok']} },
+
+{ id:'ap-ref', g:'AP', title:'Refused by Amplifon', fr:'Refusée', code:'210', term:true,
+  errType:'Business refusal (terminal)', raised:'Amplifon (we emit the status)', cn:'Supplier issues (we don’t book)',
+  action:'Emit “Refusée” + motive; contact the supplier. The supplier issues a credit note + new invoice; do not book the original.',
+  promptLabel:'refusal motive', motives:REFUSAL,
+  steps:[ {f:[4,3],k:'inv'},{m:4,b:'ok',n:'Issued'},{m:3,b:'ok',n:'Emitted by supplier PA'},{f:[3,2],k:'inv'},{m:2,b:'ok',n:'Received — not rejected'},{f:[2,1],k:'inv'},{m:1,b:'ok',n:'Well received'},{p:1},{m:1,b:'ok',n:'Received · refusal 210 raised: {m}'},{f:[1,2],k:'st'},{m:2,b:'ok',n:'Refusal relayed to supplier'},{m:0,b:'no',n:'Not booked (refused 210)'},{f:[2,3],k:'st'},{f:[3,4],k:'st'},{m:4,b:'ok',n:'Supplier notified — credit note + new invoice'},{d:1} ],
+  dash:{out:'Refused 210', cls:'error', oracle:['Not booked','no'], apro:['Refusal 210 raised','hold'], tesi:['Refusal relayed','ok'], cpty:['Notified','ok']} },
+];
+const byId = id => SCEN.find(s=>s.id===id);
+
+/* ---------- DOM builders ---------- */
+function buildFlow(group){
+  const flow = document.createElement('div'); flow.className='flow';
+  for(let i=0;i<5;i++){
+    if(i>0){ const w=document.createElement('div'); w.className='wire'; w.dataset.i=i-1; flow.appendChild(w); }
+    const meta = i<3?BASE[i]:EXT[group][i-3];
+    const n=document.createElement('div'); n.className='node'; n.dataset.i=i;
+    n.innerHTML = `<span class="badge"></span><span class="ic">${ICON[meta.ic]}</span>`+
+      `<div class="nt-t">${meta.t}</div><div class="nt-s">${meta.s}</div><div class="note"></div>`;
+    flow.appendChild(n);
+  }
+  const pk=document.createElement('div'); pk.className='packet'; flow.appendChild(pk);
+  return flow;
+}
+const nodesOf = f => [...f.querySelectorAll('.node')];
+const wiresOf = f => [...f.querySelectorAll('.wire')];
+
+function resetFlow(f){
+  wiresOf(f).forEach(w=>w.className='wire');
+  nodesOf(f).forEach(n=>{
+    const b=n.querySelector('.badge'); b.className='badge'; b.textContent='';
+    const t=n.querySelector('.note'); t.className='note'; t.textContent='';
+    n.classList.remove('active');
+  });
+  const pk=f.querySelector('.packet'); pk.className='packet'; pk.style.transform='';
+}
+function centers(f){
+  const fr=f.getBoundingClientRect();
+  return nodesOf(f).map(n=>{const r=n.getBoundingClientRect(); return {x:r.left-fr.left+r.width/2, y:r.top-fr.top+r.height/2};});
+}
+function mark(f, slot, badge, note){
+  const n=nodesOf(f)[slot];
+  const b=n.querySelector('.badge');
+  b.className='badge '+badge+' show';
+  b.textContent = badge==='ok'?'✓':badge==='no'?'✗':'!';
+  if(note!=null){ const t=n.querySelector('.note'); t.textContent=note; t.classList.add('show'); }
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+async function flowAnim(f, a, b, kind, mult, instant){
+  const w=wiresOf(f)[Math.min(a,b)];
+  if(w) w.classList.add(kind==='inv'?'lit-inv':'lit-st');
+  const pk=f.querySelector('.packet');
+  pk.className='packet '+(kind==='inv'?'inv':'st')+' show';
+  const c=centers(f), from=c[a], to=c[b];
+  const pr=pk.getBoundingClientRect(); const ox=pr.width/2||7.5, oy=pr.height/2||7.5;
+  const at = p=>`translate(${p.x-ox}px,${p.y-oy}px)`;
+  if(instant || reduce){ pk.style.transform=at(to); pk.classList.remove('show'); return; }
+  pk.style.transform=at(from);
+  const an=pk.animate([{transform:at(from)},{transform:at(to)}],{duration:540/mult, easing:'cubic-bezier(.45,.05,.3,1)'});
+  try{ await an.finished; }catch(e){}
+  pk.style.transform=at(to);
+  pk.classList.remove('show');
+}
+
+/* ---------- runner ---------- */
+async function runFlow(f, sc, opts){
+  const o = Object.assign({instant:false, mult:1, onPrompt:null, onDash:null, token:null, motive:sc.motives[0]}, opts);
+  resetFlow(f);
+  let chosen = o.motive;
+  for(const s of sc.steps){
+    if(o.token && o.token.cancelled) return;
+    if('f' in s){ await flowAnim(f, s.f[0], s.f[1], s.k, o.mult, o.instant); }
+    else if('m' in s){ mark(f, s.m, s.b, (s.n||'').replace('{m}',chosen)); if(!o.instant && !reduce) await sleep(170/o.mult); }
+    else if('p' in s){ if(o.onPrompt){ chosen = await o.onPrompt(s.p, sc); } }
+    else if('d' in s){ if(o.onDash) o.onDash(sc, chosen); }
+  }
+  return chosen;
+}
+
+/* =================== MAIN SIMULATOR =================== */
+const mainflow = document.getElementById('mainflow');
+const elPicker = document.getElementById('picker');
+const prompt = document.getElementById('prompt');
+const promptSel = document.getElementById('prompt-sel');
+const promptNode = document.getElementById('prompt-node');
+let current = SCEN[0];
+let token = {cancelled:false};
+let mult = 1;
+let pendingResolve = null;
+
+function buildPicker(){
+  ['AR','AP'].forEach(g=>{
+    const h=document.createElement('div'); h.className='grp';
+    h.textContent = g==='AR' ? 'AR · outbound (we issue)' : 'AP · inbound (we receive)';
+    elPicker.appendChild(h);
+    SCEN.filter(s=>s.g===g).forEach(s=>{
+      const b=document.createElement('button'); b.className='case'; b.dataset.id=s.id; b.type='button';
+      b.innerHTML = `<span class="tag ${g.toLowerCase()}">${g}</span>`+
+        `<span class="nm">${s.title}<br><span class="cd">${s.fr}</span></span>`+
+        `<span class="cd">${s.code}</span>`;
+      b.addEventListener('click',()=>select(s.id,true));
+      elPicker.appendChild(b);
+    });
+  });
+}
+function highlightPicker(id){
+  [...elPicker.querySelectorAll('.case')].forEach(b=>b.classList.toggle('on', b.dataset.id===id));
+}
+
+function paintHeader(sc){
+  document.getElementById('st-title').textContent = sc.title;
+  document.getElementById('st-fr').textContent = sc.fr;
+  document.getElementById('st-code').textContent = codeLabel(sc.code);
+  const term=document.getElementById('st-term');
+  term.textContent = sc.term ? 'terminal' : 'non-terminal';
+  term.className = 'pill ' + (sc.term ? 'term' : 'nonterm');
+  const arrow = sc.g==='AR'
+    ? '<b>Invoice →</b> Oracle to Customer &nbsp;·&nbsp; <span class="stl">← status / motive returns</span>'
+    : '<span class="stl">status / motive returns →</span> &nbsp;·&nbsp; <b>← Invoice</b> Supplier to Oracle';
+  document.getElementById('st-dir').innerHTML = arrow;
+
+  const d=document.getElementById('details');
+  const cells=[
+    ['Flow', sc.g==='AR'?'AR · outbound':'AP · inbound'],
+    ['Error type', sc.errType],
+    ['Raised by', sc.raised],
+    ['Credit note?', sc.cn],
+    ['Action to perform', sc.action],
+  ];
+  d.innerHTML = cells.map(([k,v])=>`<div class="cell"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function paintDash(sc, motive){
+  const dash=document.getElementById('dash'); dash.classList.add('live');
+  document.getElementById('dash-src').textContent = sc.g==='AR' ? 'Outbound monitoring' : 'Inbound monitoring';
+  const rep = s => (s||'').replace('{m}', motive);
+  const out = sc.dash.out, cls = sc.dash.cls;
+  const invNo = sc.g==='AR' ? 'INV-2026-0142' : 'SUP-IN-88317';
+  document.getElementById('dash-chips').innerHTML =
+    `<span class="chip"><b>1</b> invoice simulated</span>`+
+    `<span class="chip"><b>0</b> success</span>`+
+    `<span class="chip ${cls}"><b>1</b> ${out}</span>`+
+    `<span class="chip ${cls}"><b>1</b> to mitigate</span>`;
+  const cptyHead = sc.g==='AR' ? 'Customer side' : 'Supplier side';
+  const d = sc.dash;
+  const cells = [
+    ['Invoice no', invNo, 'mono', ''],
+    ['Type','Invoice','',''],
+    ['Date','09/06/2026','',''],
+    ['Oracle', rep(d.oracle[0]), '', 's-'+d.oracle[1]],
+    ['APRO', rep(d.apro[0]), '', 's-'+d.apro[1]],
+    ['Tesisquare', rep(d.tesi[0]), '', 's-'+d.tesi[1]],
+    [cptyHead, rep(d.cpty[0]), '', 's-'+d.cpty[1]],
+    ['Outcome', out, '', 's-'+(cls==='error'?'no':'hold')]
+  ];
+  document.getElementById('dash-tbl').innerHTML =
+    '<thead><tr>'+cells.map(c=>`<th>${c[0]}</th>`).join('')+'<th>What to do</th></tr></thead>'+
+    '<tbody><tr>'+cells.map(c=>`<td class="${c[2]} ${c[3]}">${c[1]}</td>`).join('')+
+    `<td style="min-width:230px;color:var(--mut)">${rep(sc.action)}</td></tr></tbody>`;
+}
+function clearDash(){
+  const dash=document.getElementById('dash'); dash.classList.remove('live');
+  document.getElementById('dash-chips').innerHTML='';
+  document.getElementById('dash-tbl').innerHTML='';
+  document.getElementById('dash-src').textContent='';
+}
+
+function onPrompt(slot, sc){
+  return new Promise(resolve=>{
+    promptNode.textContent = nodeName(sc.g, slot);
+    promptSel.innerHTML = '<option value="" selected disabled>Choose '+sc.promptLabel+'…</option>'
+      + sc.motives.map(m=>`<option value="${m}">${m}</option>`).join('');
+    prompt.classList.add('show');
+    nodesOf(mainflow)[slot].classList.add('active');
+    pendingResolve = (val)=>{
+      prompt.classList.remove('show');
+      nodesOf(mainflow)[slot].classList.remove('active');
+      pendingResolve = null;
+      resolve(val);
+    };
+    promptSel.onchange = ()=>{ if(promptSel.value) pendingResolve(promptSel.value); };
+  });
+}
+
+async function play(){
+  token.cancelled = true;
+  if(pendingResolve){ const r=pendingResolve; pendingResolve=null; r(current.motives[0]); }
+  const my = {cancelled:false}; token = my;
+  await Promise.resolve();
+  clearDash(); resetFlow(mainflow);
+  prompt.classList.remove('show');
+  await runFlow(mainflow, current, {mult, token:my, onPrompt, onDash:paintDash});
+}
+function select(id, run){
+  current = byId(id);
+  highlightPicker(id);
+  paintHeader(current);
+  if(run) play();
+}
+
+document.getElementById('btn-run').addEventListener('click', play);
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  token.cancelled=true;
+  if(pendingResolve){ const r=pendingResolve; pendingResolve=null; r(current.motives[0]); }
+  prompt.classList.remove('show'); clearDash(); resetFlow(mainflow);
+});
+document.querySelectorAll('.speed button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.speed button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); mult=parseFloat(b.dataset.mult);
+  });
+});
+
+/* =================== GALLERY (static, all cases) =================== */
+function buildGallery(){
+  const g=document.getElementById('gallery');
+  SCEN.forEach(sc=>{
+    const card=document.createElement('div'); card.className='gcard';
+    card.innerHTML =
+      `<div class="gh"><span class="tag ${sc.g.toLowerCase()}">${sc.g}</span>`+
+      `<span class="nm">${sc.title}</span><span class="cd">${codeLabel(sc.code)}</span></div>`+
+      `<p class="gsub">${sc.fr}</p>`;
+    const scroll=document.createElement('div'); scroll.className='flowscroll mini';
+    const f=buildFlow(sc.g); scroll.appendChild(f); card.appendChild(scroll);
+    const res=document.createElement('div'); res.className='gres';
+    const noCN = sc.cn==='No' || sc.cn==='N/A (supplier side)';
+    res.innerHTML = `<b>Example:</b> ${sc.motives[0]} &nbsp;·&nbsp; ${noCN?'no credit note':'credit note'}`;
+    card.appendChild(res);
+    g.appendChild(card);
+    requestAnimationFrame(()=> runFlow(f, sc, {instant:true, motive:sc.motives[0]}) );
+  });
+}
+
+document.getElementById('foot').innerHTML =
+  'Systems: <code>Oracle</code> (Amplifon ERP) · <code>APRO</code> (middleware, pre-transmission validation on outbound) · '+
+  '<code>Tesisquare</code> (Amplifon PA). CDV status codes per DGFiP external specs v3.1 / AFNOR XP Z12-012; '+
+  'motive lists are illustrative per case — the AFNOR status-motive table is the authority. Confirm Tesisquare’s exact emitted codes against its CDV implementation.';
+
+/* init */
+buildPicker();
+mainflow.appendChild(buildFlow(current.g));
+highlightPicker(current.id);
+paintHeader(current);
+buildGallery();
+window.addEventListener('load', ()=> setTimeout(play, 350));
+</script>
+</body>
+</html>
